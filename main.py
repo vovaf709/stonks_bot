@@ -3,8 +3,11 @@ from aiogram.dispatcher import Dispatcher
 from aiogram.utils import executor
 
 from api_tokens import bot_api_token
-from models.crypto import CryptoApi, CoinMarketApi  # noqa TODO: fix flake8 configuration
-from models.stocks import StocksApi  # noqa TODO: fix flake8 configuration
+from models.crypto import (
+    CoinMarketApi,
+    CryptoApi,
+)
+from models.stocks import StocksApi
 
 
 bot = Bot(bot_api_token)
@@ -17,9 +20,7 @@ coin_market_api = CoinMarketApi()
 @dispatcher.message_handler(commands=['start', 'help'])
 async def send_greeting(message: types.Message):
     """Sends greeting to user"""
-    await bot.send_message(
-        message.chat.id, 'Здарова! Совет дня: инвестируй в крипту'
-    )
+    await bot.send_message(message.chat.id, 'Здарова! Совет дня: инвестируй в крипту')
 
 
 @dispatcher.message_handler(commands=['crypt'])
