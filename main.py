@@ -12,16 +12,10 @@ from models.crypto import (
 from models.stocks import StocksApi
 
 
-PROJECT_NAME = os.getenv('PROJECT_NAME', 'aiogram-example')  # Set it as you've set TOKEN env var
-WEBHOOK_HOST = (
-    f'https://{PROJECT_NAME}.herokuapp.com/'  # Domain name or IP addres which your bot is located.
-)
+
 WEBHOOK_PATH = ""  # Part of URL
 
-WEBHOOK_URL = WEBHOOK_HOST
-# webserver settings
-WEBAPP_HOST = '0.0.0.0'  # or ip
-WEBAPP_PORT = os.getenv('PORT')
+
 
 bot = Bot(bot_api_token)
 dispatcher = Dispatcher(bot)
@@ -95,6 +89,25 @@ async def on_shutdown(dp):
 
 
 if __name__ == '__main__':
+    if 'DYNO' in os.environ:
+        #debug = False
+        PROJECT_NAME = os.getenv('PROJECT_NAME', 'aiogram-example')  # Set it as you've set TOKEN env var
+
+        # WEBHOOK_HOST = f'https://{PROJECT_NAME}.herokuapp.com/'  # Enter here your link from Heroku project settings
+
+
+        WEBHOOK_URL = f'https://{PROJECT_NAME}.herokuapp.com/'  # Domain name or IP addres which your bot is located.
+       
+        # webserver settings
+        WEBAPP_HOST = '0.0.0.0'  # or ip 
+        WEBAPP_PORT = os.getenv('PORT')
+    else:
+        #debug = True
+        WEBHOOK_URL = 'ngrok-link'  # Domain name or IP addres which your bot is located.
+       
+        # webserver settings
+        WEBAPP_HOST = '0.0.0.0'  # or ip 
+        WEBAPP_PORT = 5000
     start_webhook(
         dispatcher=dispatcher,
         webhook_path=WEBHOOK_PATH,
