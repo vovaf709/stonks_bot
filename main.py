@@ -6,6 +6,26 @@ from api_tokens import bot_api_token
 from models.crypto import CryptoApi, CoinMarketApi  # noqa TODO: fix flake8 configuration
 from models.stocks import StocksApi  # noqa TODO: fix flake8 configuration
 
+from aiohttp import web
+from aiogram.utils.executor import start_webhook
+
+import logging
+
+# Constants
+# TOKEN = os.getenv('TOKEN', '')  # Press "Reveal Config Vars" in settings tab on Heroku and set TOKEN variable
+PROJECT_NAME = os.getenv('PROJECT_NAME', 'aiogram-example')  # Set it as you've set TOKEN env var
+
+# WEBHOOK_HOST = f'https://{PROJECT_NAME}.herokuapp.com/'  # Enter here your link from Heroku project settings
+
+
+WEBHOOK_HOST = ""  # Domain name or IP addres which your bot is located.
+WEBHOOK_PATH = ""  # Part of URL
+
+# WEBHOOK_URL = f"https://{WEBHOOK_HOST}:{WEBHOOK_PORT}{WEBHOOK_PATH}"
+WEBHOOK_URL = WEBHOOK_HOST
+# webserver settings
+WEBAPP_HOST = '0.0.0.0'  # or ip 
+WEBAPP_PORT = os.getenv('PORT')
 
 bot = Bot(bot_api_token)
 dispatcher = Dispatcher(bot)
@@ -57,5 +77,48 @@ async def send_few_coins_price(message: types.Message):
 #     await bot.send_message(message.chat.id, gainers_losers)
 
 
+# if __name__ == '__main__':
+#     executor.start_polling(dispatcher)
+
+
+
+async def on_startup(dp):
+    logging.warning('Starting up..')
+
+    await bot.set_webhook(WEBHOOK_URL)
+    # insert code here to run it after start
+    logging.warning('Lets go!')
+
+
+async def on_shutdown(dp):
+    logging.warning('Shutting down..')
+
+    # insert code here to run it before shutdown
+
+    # Remove webhook (not acceptable in some cases)
+    await bot.delete_webhook()
+
+
+    logging.warning('Bye!')
+
+
+
 if __name__ == '__main__':
-    executor.start_polling(dispatcher)
+    start_webhook(
+        dispatcher=dispatcher,
+        webhook_path=WEBHOOK_PATH,
+        on_startup=on_startup,
+        on_shutdown=on_shutdown,
+        skip_updates=True,
+        host=WEBAPP_HOST,
+        port=WEBAPP_PORT,
+    )
+    # Create aiohttp.web.Application with configured route for webhook path
+    # app = get_new_configured_app(dispatcher=dispatcher, path=WEBHOOK_URL_PATH)
+    # # Setup event handlers.
+    # app.on_startup.append(on_startup)
+    # app.on_shutdown.append(on_shutdown)
+    # dispatcher.loop.set_task_factory(context.task_factory)
+    # print('lets go')
+    # web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)  # Heroku stores port you have to listen in your ap
+    # web.run_app(app, host='0.0.0.0', port=os.getenv('PORT'))  # Heroku stores port you have to listen in your ap
