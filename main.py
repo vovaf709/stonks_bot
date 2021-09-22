@@ -18,7 +18,7 @@ PROJECT_NAME = os.getenv('PROJECT_NAME', 'aiogram-example')  # Set it as you've 
 # WEBHOOK_HOST = f'https://{PROJECT_NAME}.herokuapp.com/'  # Enter here your link from Heroku project settings
 
 
-WEBHOOK_HOST = ""  # Domain name or IP addres which your bot is located.
+WEBHOOK_HOST = f'https://{PROJECT_NAME}.herokuapp.com/'  # Domain name or IP addres which your bot is located.
 WEBHOOK_PATH = ""  # Part of URL
 
 # WEBHOOK_URL = f"https://{WEBHOOK_HOST}:{WEBHOOK_PORT}{WEBHOOK_PATH}"
