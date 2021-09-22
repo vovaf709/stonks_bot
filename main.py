@@ -1,6 +1,8 @@
+import logging
+import os
 from aiogram import Bot, types
 from aiogram.dispatcher import Dispatcher
-from aiogram.utils import executor
+from aiogram.utils.executor import start_webhook
 
 from api_tokens import bot_api_token
 from models.crypto import (
@@ -9,25 +11,16 @@ from models.crypto import (
 )
 from models.stocks import StocksApi
 
-from aiohttp import web
-from aiogram.utils.executor import start_webhook
 
-import logging
-
-# Constants
-# TOKEN = os.getenv('TOKEN', '')  # Press "Reveal Config Vars" in settings tab on Heroku and set TOKEN variable
 PROJECT_NAME = os.getenv('PROJECT_NAME', 'aiogram-example')  # Set it as you've set TOKEN env var
-
-# WEBHOOK_HOST = f'https://{PROJECT_NAME}.herokuapp.com/'  # Enter here your link from Heroku project settings
-
-
-WEBHOOK_HOST = f'https://{PROJECT_NAME}.herokuapp.com/'  # Domain name or IP addres which your bot is located.
+WEBHOOK_HOST = (
+    f'https://{PROJECT_NAME}.herokuapp.com/'  # Domain name or IP addres which your bot is located.
+)
 WEBHOOK_PATH = ""  # Part of URL
 
-# WEBHOOK_URL = f"https://{WEBHOOK_HOST}:{WEBHOOK_PORT}{WEBHOOK_PATH}"
 WEBHOOK_URL = WEBHOOK_HOST
 # webserver settings
-WEBAPP_HOST = '0.0.0.0'  # or ip 
+WEBAPP_HOST = '0.0.0.0'  # or ip
 WEBAPP_PORT = os.getenv('PORT')
 
 bot = Bot(bot_api_token)
@@ -82,7 +75,6 @@ async def send_few_coins_price(message: types.Message):
 #     executor.start_polling(dispatcher)
 
 
-
 async def on_startup(dp):
     logging.warning('Starting up..')
 
@@ -99,9 +91,7 @@ async def on_shutdown(dp):
     # Remove webhook (not acceptable in some cases)
     await bot.delete_webhook()
 
-
     logging.warning('Bye!')
-
 
 
 if __name__ == '__main__':
@@ -121,5 +111,7 @@ if __name__ == '__main__':
     # app.on_shutdown.append(on_shutdown)
     # dispatcher.loop.set_task_factory(context.task_factory)
     # print('lets go')
-    # web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)  # Heroku stores port you have to listen in your ap
-    # web.run_app(app, host='0.0.0.0', port=os.getenv('PORT'))  # Heroku stores port you have to listen in your ap
+    # web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
+    # Heroku stores port you have to listen in your ap
+    # web.run_app(app, host='0.0.0.0', port=os.getenv('PORT'))
+    # Heroku stores port you have to listen in your ap
