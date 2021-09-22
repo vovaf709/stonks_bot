@@ -1,5 +1,6 @@
 [flake8]
-max-line-length = 80
+ignore = I201
+max-line-length = 100
 
 [flake8-import-order]
-import-order-style = appnexus
+import-order-style = google

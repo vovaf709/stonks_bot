@@ -5,7 +5,6 @@ import aiohttp
 
 from api_tokens import crypto_api_token, crypto_coinmarketcap_api_token
 from config import crypto_api_url, crypto_coinmarketcap_api_url
-  # noqa TODO: fix flake8 configuration
 
 
 class CryptoApi:
@@ -37,10 +36,10 @@ class CoinMarketApi:
 
     async def return_data(self, headers, params, template):
         async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(f'{self.crypto_coinmarketcap_api_url}{template}',
-                params=params) as response:
+            async with session.get(
+                f'{self.crypto_coinmarketcap_api_url}{template}', params=params
+            ) as response:
                 return await response.json()
-
 
     async def gainers_losers(self, convert="RUB", start=1, limit=20, time_period="24h"):
 
@@ -50,7 +49,6 @@ class CoinMarketApi:
 
         return self.return_data(headers, params, template)
 
-
     async def all_coins(self, convert="RUB", start=1, limit=20, time_period="24h"):
 
         template = 'cryptocurrency/trending/gainers-losers'
@@ -58,7 +56,6 @@ class CoinMarketApi:
         params = {'start': start, 'limit': limit, 'convert': convert}
 
         return await self.return_data(headers, params, template)
-
 
     async def few_coins(self, symbol='BTC,ETH', convert="RUB"):
 
@@ -69,8 +66,9 @@ class CoinMarketApi:
         response = await self.return_data(headers, params, template)
         answer = {}
         for key, value in response['data'].items():
-            answer[key] = {"price": f"{int(value['quote'][convert]['price'])} RUB", 
-            "24h_change": f"{round(value['quote'][convert]['percent_change_24h'], 2)}%",
-            "7d_change": f"{round(value['quote'][convert]['percent_change_7d'], 2)}%"
+            answer[key] = {
+                "price": f"{int(value['quote'][convert]['price'])} RUB",
+                "24h_change": f"{round(value['quote'][convert]['percent_change_24h'], 2)}%",
+                "7d_change": f"{round(value['quote'][convert]['percent_change_7d'], 2)}%",
             }
         return answer
