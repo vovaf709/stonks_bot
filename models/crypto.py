@@ -47,7 +47,7 @@ class CoinMarketApi:
         headers = {'X-CMC_PRO_API_KEY': self.crypto_coinmarketcap_api_token}
         params = {'start': start, 'limit': limit, 'convert': convert}
 
-        return self.return_data(headers, params, template)
+        return await self.return_data(headers, params, template)
 
     async def all_coins(self, convert="RUB", start=1, limit=20, time_period="24h"):
 

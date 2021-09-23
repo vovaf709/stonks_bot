@@ -3,6 +3,9 @@ import os
 from aiogram import Bot, types
 from aiogram.dispatcher import Dispatcher
 from aiogram.utils.executor import start_webhook
+from aiogram.utils.markdown import text, bold, italic, code, pre
+from aiogram.types import ParseMode
+from aiogram.utils.emoji import emojize
 
 from api_tokens import bot_api_token
 from models.crypto import (
@@ -13,16 +16,32 @@ from models.stocks import StocksApi
 
 
 
-WEBHOOK_PATH = ""  # Part of URL
+WEBHOOK_PATH = ""  # Part of WEBHOOK_URL
+emoji_point = ':point_right:'
+emoji_red = ':red_circle:'
+emoji_green = ':green_circle:'
 
 
-
-bot = Bot(bot_api_token)
+bot = Bot(bot_api_token, parse_mode=ParseMode.MARKDOWN)
 dispatcher = Dispatcher(bot)
 crypto_api = CryptoApi()
 stocks_api = StocksApi()
 coin_market_api = CoinMarketApi()
 
+
+def format_output(data):
+    message = ""
+    if isinstance(data, dict):
+        for key, val in data.items():
+            message += f'\n{italic(key)}'
+            message += format_output(val)
+    else:
+        if '%' == str(data)[-1]:
+            emoji_color = (emoji_red if float(data[:-1]) < 0 else emoji_green)
+        else:
+            emoji_color = ""
+        message += f'{emoji_point} {bold(data)} {emoji_color}'
+    return emojize(message)
 
 @dispatcher.message_handler(commands=['start', 'help'])
 async def send_greeting(message: types.Message):
@@ -34,14 +53,18 @@ async def send_greeting(message: types.Message):
 async def send_crypt(message: types.Message):
     """Sends crypt price"""
     crypt_price = await crypto_api.get_price()
-    await bot.send_message(message.chat.id, crypt_price)
+    await bot.send_message(message.chat.id, format_output(crypt_price))
 
 
 @dispatcher.message_handler(commands=['stock'])
 async def send_stock(message: types.Message):
     """Sends stock price"""
     stock_price = await stocks_api.get_price()
-    await bot.send_message(message.chat.id, stock_price)
+    # message_text = text(bold('Я не знаю, что с этим делать '),
+    #                     italic(f'\n {stock_price}'),
+    #                     code('команда'), underline('/help'))
+    # await msg.reply(message_text, parse_mode=ParseMode.MARKDOWN)
+    await bot.send_message(message.chat.id, format_output(stock_price))
 
 
 @dispatcher.message_handler(commands=['gl'])
@@ -55,7 +78,7 @@ async def send_crypto_gainers_losers(message: types.Message):
 async def send_few_coins_price(message: types.Message):
     """Sends stock price"""
     coins = await coin_market_api.few_coins()
-    await bot.send_message(message.chat.id, coins)
+    await bot.send_message(message.chat.id, format_output(coins))
 
 
 # @dispatcher.message_handler(commands=['allcoins'])
@@ -103,7 +126,7 @@ if __name__ == '__main__':
         WEBAPP_PORT = os.getenv('PORT')
     else:
         #debug = True
-        WEBHOOK_URL = 'ngrok-link'  # Domain name or IP addres which your bot is located.
+        WEBHOOK_URL = 'ngrok'  # Domain name or IP addres which your bot is located.
        
         # webserver settings
         WEBAPP_HOST = '0.0.0.0'  # or ip 

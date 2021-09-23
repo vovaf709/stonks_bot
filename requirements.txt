@@ -1,5 +1,6 @@
 aiohttp
 aiogram
+emoji
 
 flake8-import-order
 flake8
