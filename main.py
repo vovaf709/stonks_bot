@@ -83,7 +83,7 @@ async def on_shutdown(dp):
     # insert code here to run it before shutdown
 
     # Remove webhook (not acceptable in some cases)
-    await bot.delete_webhook()
+    # await bot.delete_webhook() commented cause of heroku don't want to wake up bot
 
     logging.warning('Bye!')
 
