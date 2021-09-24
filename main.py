@@ -36,12 +36,13 @@ async def send_greeting(message: Message):
 @catch_and_send(bot, ApiException)
 async def send_crypto(message: Message):
     """Sends crypt price"""
-    crypto_name = message['text'].split()[-1]
+    splitted = message['text'].split()
 
-    if crypto_name == '/crypto':
+    if len(splitted) == 1:
         await bot.send_message(message.chat.id, 'Please specify cryptocurrency')
         return
 
+    crypto_name = splitted[-1]
     crypto_price = await crypto_api.get_price(crypto_name=crypto_name)
 
     await bot.send_message(message.chat.id, format_output(crypto_price))
