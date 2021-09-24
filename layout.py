@@ -9,10 +9,7 @@ EMOJI_RED = ':red_circle:'
 EMOJI_GREEN = ':green_circle:'
 
 
-def format_output(data: Union[Dict, str, None]):
-    if data is None:
-        return None
-
+def format_output(data: Union[Dict, str]):
     message = ""
     if isinstance(data, dict):
         for key, val in data.items():
