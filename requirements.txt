@@ -1,6 +1,6 @@
-aiohttp
-aiogram
-
-flake8-import-order
-flake8
-black
+aiohttp==3.7.4
+aiogram==2.14.3
+emoji==1.5.0
+flake8-import-order==0.18.1
+flake8==3.8.3
+black==21.9b0
