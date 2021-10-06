@@ -20,7 +20,6 @@ def format_output(data: Union[Dict, str]):
             emoji_color = EMOJI_RED if float(data[:-1]) < 0 else EMOJI_GREEN
         else:
             emoji_color = ""
-
         message += f'{EMOJI_POINT} {hbold(data)} {emoji_color}'
 
     return emojize(message)
