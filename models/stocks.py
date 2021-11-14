@@ -28,7 +28,7 @@ class StocksApi(ExternalApi):
                 f'&token={self.stock_api_token}'
             ) as response:
                 info = self.process_response(await response.json())
-                print("LADLG", info)
+                # print("LADLG", info)
 
                 return {'name': stock_name, 'price': f'{info["c"]} USD'}
                 """ c
