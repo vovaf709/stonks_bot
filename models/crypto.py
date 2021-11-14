@@ -1,22 +1,23 @@
 """ Crypto Classes """
-from typing import List
+import logging
+from typing import Dict, List
 
 import aiohttp
 
 from api_tokens import crypto_api_token, crypto_coinmarketcap_api_token
 from config import crypto_api_url, crypto_coinmarketcap_api_url
+from exceptions import ApiException
+from models.interfaces import ExternalApi
 
 
-class CryptoApi:
+# TODO: decide which cryptocurrency API to use
+class CryptoApi(ExternalApi):
 
     crypto_api_token = crypto_api_token
     crypto_api_url = crypto_api_url
+    CRYPTO_ERROR_MSG = 'Something went wrong. Are you sure that such a cryptocurrency exists?'
 
-    async def get_price(
-        self,
-        crypto_name: str = 'BTC',
-        convert_output_names: List[str] = ['RUB', 'USD'],
-    ):
+    async def get_price(self, crypto_name: str, convert_output_names: List[str] = ['RUB', 'USD']):
         output_names = ','.join(map(str, convert_output_names))
 
         async with aiohttp.ClientSession() as session:
@@ -26,7 +27,13 @@ class CryptoApi:
                 f'&tsyms={output_names}'
                 f'&api_key={self.crypto_api_token}'
             ) as response:
-                return await response.json()
+                return self.process_response(await response.json())
+
+    def process_response(self, data: Dict):
+        if data.get('Response') == 'Error':
+            logging.exception(data)
+            raise ApiException(self.CRYPTO_ERROR_MSG)
+        return data
 
 
 class CoinMarketApi:
