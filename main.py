@@ -6,7 +6,7 @@ from aiogram.types import Message
 from aiogram.types import ParseMode
 from aiogram.utils.executor import start_webhook
 
-from api_tokens import bot_api_token, on_heroku, DATABASE_URL
+from api_tokens import bot_api_token, on_heroku, DATABASE_URL, REDIS_URL
 from exceptions import ApiException, catch_and_send
 from layout import format_output
 from models.crypto import (
@@ -17,8 +17,14 @@ from models.stocks import StocksApi
 
 import psycopg2
 from psycopg2 import Error
-from db_work import insert_stock, select_stocks, select_stocks_filter
-
+from db_work import insert_stock, select_stocks, select_stocks_filter, delete_stock
+# import websocket
+from api_tokens import stock_api_token
+import redis
+import asyncio
+from websockets import connect
+import json
+# import redis_work
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -33,11 +39,41 @@ try:
 except (Exception, Error) as error:
     logging.info("Error while connecting to PostgreSQL", error)
 
+try:
+    redis = redis.from_url(REDIS_URL)
+except (Exception, Error) as error:
+    logging.info("Error while connecting to Redis", error)
+
+
+
 bot = Bot(bot_api_token, parse_mode=ParseMode.HTML)
 dispatcher = Dispatcher(bot)
 crypto_api = CryptoApi()
 stocks_api = StocksApi()
 coin_market_api = CoinMarketApi()
+
+# def on_message(ws, message):
+#     print(message)
+
+# def on_error(ws, error):
+#     print(error)
+
+# def on_close(ws):
+#     print("### closed ###")
+
+# def on_open(ws):
+#     ws.send('{"type":"subscribe","symbol":"AAPL"}')
+#     # ws.send('{"type":"subscribe","symbol":"AMZN"}')
+#     # ws.send('{"type":"subscribe","symbol":"BINANCE:BTCUSDT"}')
+#     # ws.send('{"type":"subscribe","symbol":"IC MARKETS:1"}')
+
+# websocket.enableTrace(True)
+# ws = websocket.WebSocketApp(f"wss://ws.finnhub.io?token={stock_api_token}",
+#                           on_message = on_message,
+#                           on_error = on_error,
+#                           on_close = on_close)
+# ws.on_open = on_open
+
 
 
 @dispatcher.message_handler(commands=['start', 'help'])
@@ -84,16 +120,63 @@ async def send_stock(message: Message):
     await bot.send_message(message.chat.id, format_output(stock_price))
 
 
+@dispatcher.message_handler(commands=['alert'])
+@catch_and_send(bot, ApiException)
+async def create_alert(message: Message):
+    """Sends stock price"""
+    splitted = message['text'].split()
+
+    if len(splitted) == 3:
+        stock_name = splitted[1]
+        print(stock_name)
+        info = await stocks_api.get_lookup(stock_name)
+        if info:
+            if redis.sismember('stocks', info['ticker']):
+                price = float(redis.get(info['ticker'] + "_price"))
+                print(price)
+                if price:
+                    alert_price = float(splitted[2])
+                    
+                    if price < alert_price:
+                        redis.rpush(info['ticker'] + "_alert", 1) # Alert more than current price
+                        redis.rpush(info['ticker'] + "_alert", alert_price)
+                        print(0)
+                        print(alert_price)
+
+                    else:
+                        redis.rpush(info['ticker'] + "_alert", 0) # Alert less than current price
+                        redis.rpush(info['ticker'] + "_alert", alert_price)
+                        print(0)
+                        print(alert_price)
+                    redis.rpush('alerts', info['ticker'])
+                    await bot.send_message(message.chat.id, f"Allert: {info}, price: {price}, alert: {alert_price}")
+
+                else:
+                    await bot.send_message(message.chat.id, "For some reason we dont have price and cant set alert")
+            else:
+                await bot.send_message(message.chat.id, f"We didnt find this stock: {info} in wallet")
+        else:
+            await bot.send_message(message.chat.id, "We didnt find something close to this name")
+
+    else:
+        await bot.send_message(message.chat.id, 'Please specify stock and alert price')
+        # raise ApiException('Multiple stocks are not supported yet :(')
+
+
 @dispatcher.message_handler(commands=['wallet'])
 @catch_and_send(bot, ApiException)
 async def wallet(message: Message):
     """Sends stock price"""
     splitted = message['text'].split()
-
+    print(echo)
     # Return all wallet
     if len(splitted) == 1:
         # await bot.send_message(message.chat.id, 'Please specify stock ticker to add in wallet')
-        records = select_stocks(cursor)
+
+        # via redis
+        # records = redis.smembers('stocks')
+        #via postgres
+        records = select_stocks(cursor) # more info then set of tickers in redis
         await bot.send_message(message.chat.id, records) 
 
     elif len(splitted) > 2:
@@ -101,14 +184,53 @@ async def wallet(message: Message):
 
    
     elif len(splitted) == 2:
-         # Add new ticker in wallet
-        stock_ticker = splitted[-1]
-        result = insert_stock(connection, cursor, stock_ticker)
-        if result:
-            await bot.send_message(message.chat.id, "New ticker saved in wallet")
+         # Add new stock in wallet
+        stock_name = splitted[-1]
+        info = await stocks_api.get_lookup(stock_name)
+        if info:
+            # postgres insert
+            result = insert_stock(connection, cursor, name=info['name'], ticker=info['ticker'])
+            # redis insert
+            redis.sadd('stocks', info['ticker'])
+
+            if result:
+                req = '{"type":"subscribe","symbol":"' + info['ticker'].upper() + '"}'
+                # print(req)
+                await echo.send(req)
+                await bot.send_message(message.chat.id, f"{info['name']} with ticker: {info['ticker']} saved in wallet")
+            else:
+                logging.info("Something happened during inserting")
+                await bot.send_message(message.chat.id, "Something happened during inserting")
         else:
-            logging.info("Something happened during inserting")
-            await bot.send_message(message.chat.id, "Something happened during inserting")
+            await bot.send_message(message.chat.id, "We didnt find something close to this name")
+
+@dispatcher.message_handler(commands=['wallet_r'])
+@catch_and_send(bot, ApiException)
+async def wallet_r(message: Message):
+    """Sends stock price"""
+    splitted = message['text'].split()
+
+    # Remove one stock from wallet
+   
+    if len(splitted) == 2:
+         # Remove stock from wallet
+        stock_name = splitted[-1]
+        info = await stocks_api.get_lookup(stock_name)
+        if info:
+            # postgres delete
+            result = delete_stock(connection, cursor, name=info['name'], ticker=info['ticker'], count=1)
+            # redis delete
+            redis.srem('stocks', info[ticker])
+
+            if result:
+                await bot.send_message(message.chat.id, f"{info['name']} with ticker: {info['ticker']} removed from wallet")
+            else:
+                logging.info("Looks like wallet doesnt have it")
+                await bot.send_message(message.chat.id, "Looks like wallet doesnt have it")
+        else:
+            await bot.send_message(message.chat.id, "We didnt find something close to this name")
+    else:
+        raise ApiException('Send name of stock to remove it from wallet')
 
 
 @dispatcher.message_handler(commands=['coins'])
@@ -147,8 +269,130 @@ async def on_shutdown(dp):
     logging.info('Bye!')
 
 
+async def create_foo(settings):
+    foo = EchoWebsocket()
+    await foo._init()
+    # print(foo.websocket)
+    # print('end')
+    return foo
+
+
+class EchoWebsocket:
+    async def _init(self):
+        # print('wo')
+        self._conn = connect(f"wss://ws.finnhub.io?token={stock_api_token}")
+        self.websocket = await self._conn.__aenter__()
+        # print(self.websocket)
+        # print('socket')
+
+    # async def __aenter__(self):
+    #     print("hello")
+    #     self._conn = await connect(f"wss://ws.finnhub.io?token={stock_api_token}")
+    #     self.websocket = await self._conn.__aenter__()
+    #     print('wo')
+    #     print('here we go') 
+    #     print(self.websocket)       
+    #     return self
+
+    async def __aexit__(self, *args, **kwargs):
+        await self._conn.__aexit__(*args, **kwargs)
+
+    async def send(self, message):
+        # await asyncio.sleep(5)
+        await self.websocket.send(message)
+
+    async def receive(self):
+        return await self.websocket.recv()
+
+
+## WARINNG check logic with alerts and in create_alert func
+async def get_echo(echo):
+    response =  await echo.receive()
+    answer = []
+    # print(response)
+    response = json.loads(response).get('data', [])
+    objes = dict()
+    for data in response:
+        objes[data['s']] = data['p'] # t - timestamp, s - ticker, p - price
+    print(objes)
+    for key, val in objes.items():
+        redis.set(key + "_price", val)
+
+    print('alerts')
+    for key in redis.lrange('alerts', 0, -1):
+        # print(key)
+        key_utf = key.decode("utf-8")
+        print(key_utf)
+        price_alert = redis.lrange(key_utf + "_alert", 0, -1)
+        cur_price = objes.get(key_utf, float(redis.get(key_utf + "_price")))
+        print(f"cur_price: {cur_price}")
+        print(f"price_alert: {price_alert}")
+        print(float(price_alert[1]))
+        if price_alert:
+            if float(price_alert[1]) < cur_price and price_alert[0].decode("utf-8") == "1": # {key}_price in redis
+                print('we in 1')
+                await bot.send_message(-634163567, f"alert {key_utf} {objes[key_utf]}") 
+                redis.delete(key_utf + "_alert")
+                redis.lrem('alerts', 1, key_utf)
+            elif float(price_alert[1]) < cur_price and price_alert[0].decode("utf-8") == "0":
+                print('we in 2')
+                await bot.send_message(-634163567, f"alert {key_utf} {objes[key_utf]}")
+                redis.delete(key_utf + "_alert")
+                redis.lrem('alerts', 1, key_utf)
+        else:   
+            print('strange no price alert but in list of alerts')
+
+    return answer
+
+async def define_stocks(echo):
+    # records = select_stocks(cursor)
+    tickers_set = set()
+    for j in redis.smembers('stocks'):
+        tickers_set.add(j.decode("utf-8") )
+    # print(redis.smembers('stocks'))
+    # tickers_set = set()
+    # for j in records:
+    #     tickers_set.add(j[1])
+    # print(tickers_set)
+    # for j in tickers_set:
+    #     await echo.send('{"type":"subscribe","symbol":" '+ j +'"}')
+    for j in tickers_set:
+        # print('{"type":"subscribe","symbol":"' + j.upper() + '"}')
+        await echo.send('{"type":"subscribe","symbol":"' + j.upper() + '"}')
+    # for j in ticker_set:
+        # await echo.send('{"type":"subscribe","symbol":"AAPL"}')
+
+
+
+# print(echo)
+
+async def websocket_shit():
+    # async with EchoWebsocket() as echo:
+        # await echo.send('{"type":"subscribe","symbol":"AAPL"}')
+    global echo
+
+    echo = await create_foo("asd")
+    # print(echo)
+    await define_stocks(echo)
+    # await get_echo(echo)
+    while True:
+        data = await get_echo(echo)
+        # await bot.send_message(-634163567, data) # our chat id
+        # print(data)
+
+            # print('s')
+        # resp = await echo.receive()  # "Hello!"
+        # print(resp)
+    print('we out')
+
+
 if __name__ == '__main__':
     if on_heroku():
+        logging.info("Websocket starting")
+        loop = asyncio.get_event_loop()
+        loop.create_task(websocket_shit())
+        logging.info("Websocket started")
+
         PROJECT_NAME = os.environ['PROJECT_NAME']
 
         # Domain name or IP addres which your bot is located.
@@ -156,14 +400,31 @@ if __name__ == '__main__':
         WEBAPP_HOST = '0.0.0.0'
         WEBAPP_PORT = os.environ['PORT']
     else:
+        # ATTENTION 
+        # websocket_shit create websocket, but cause of api maximum count of live sockets is 1,
+        # so this should be turned on only in prod
+        # need smart tests with fixtures without actually starting websocket_shit on dev
+        # for adding functionality with websockets responses
+        
+        # logging.info("Websocket starting")
+        # loop = asyncio.get_event_loop()
+        # loop.create_task(websocket_shit())
+        # logging.info("Websocket started")
         # For local start specify https url from ngrok
-        WEBHOOK_URL = 'https://e346-109-252-81-136.ngrok.io'
+        WEBHOOK_URL = 'https://fbf3-109-252-81-136.ngrok.io'
         WEBAPP_HOST = '0.0.0.0'
         WEBAPP_PORT = 5000
 
         # logger.setLevel(logging.DEBUG)
 
     WEBHOOK_PATH = ""
+    # ws.run_forever()
+
+    
+
+    
+    # loop.run_until_complete(main())
+
 
     start_webhook(
         dispatcher=dispatcher,

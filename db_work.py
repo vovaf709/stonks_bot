@@ -15,6 +15,26 @@ def insert_stock(connection, cursor, ticker, name=None, count=1):
 		# Something happened during insert
 		return False
 
+def delete_stock(connection, cursor, **kwargs):
+
+	filter_query = ""
+	if kwargs:
+		filter_query = 'where'
+		for key, val in kwargs.items():
+			filter_query += f" {key} = '{val}' and"
+		filter_query = filter_query[:-3]
+	else:
+		return False
+	delete_query = "delete from stocks " + filter_query + ";"
+	cursor.execute(delete_query)
+	connection.commit()
+	if cursor.rowcount > 0:
+		# Successful delete
+		return True
+	else:
+		# Something happened during delete
+		return False
+
 
 def select_stocks(cursor):
 	select_query = "select name, ticker, count from stocks;"
@@ -37,39 +57,3 @@ def select_stocks_filter(cursor, **kwargs):
 
 	return records
 
-# insert_stock(connection, cursor, name, ticker, count)
-#     	# records = select_stocks_filter(cursor, name=name)
-#     	# print(records)
-
-# try:
-#     # Connect to an existing database
-#     connection = psycopg2.connect(user="postgres",
-#                                   password="postgres",
-#                                   database="testdb")
-
-#     # Create a cursor to perform database operations
-#     cursor = connection.cursor()
-#     # Print PostgreSQL details
-#     print("PostgreSQL server information")
-#     print(connection.get_dsn_parameters(), "\n")
-#     while True:
-#     	a = input()
-#     	if a == 'q':
-#     		break
-#     	name, ticker, count = a.split()
-#     	count = int(count)
-#     	
-
-#     	# Executing a SQL query
-#     	cursor.execute("SELECT * from stocks;")
-#     	# Fetch result
-#     	record = cursor.fetchall()
-#     	print(record, "\n")
-
-# except (Exception, Error) as error:
-#     print("Error while connecting to PostgreSQL", error)
-# finally:
-#     if (connection):
-#         cursor.close()
-#         connection.close()
-#         print("PostgreSQL connection is closed")

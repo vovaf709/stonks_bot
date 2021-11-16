@@ -52,9 +52,25 @@ class StocksApi(ExternalApi):
                     pc
                     Previous close price"""
 
-    def process_response(self, data: Dict):
+    async def get_lookup(self, search_string: str):
+
+        template = 'search?'
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f'{self.stock_api_url}'
+                f'{template}'
+                f'&q={search_string}'
+                f'&token={self.stock_api_token}'
+            ) as response:
+                info = self.process_response(await response.json(), param='count')
+                if info['count'] > 0:
+                    return {"name": info["result"][0]["description"], "ticker": info["result"][0]["symbol"]}
+                # else something like error
+
+    def process_response(self, data: Dict, param='d'):
         # TODO: figure out more sophisticated way to identify invalid stock
-        if data.get('d') is None:
+        if data.get(param) is None:
             logging.exception(data)
             raise ApiException(self.STOCK_ERROR_MSG)
         return data
