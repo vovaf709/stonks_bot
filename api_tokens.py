@@ -4,7 +4,6 @@ import os
 def on_heroku():
     return 'DYNO' in os.environ
 
-
 crypto_api_token = os.environ['CRYPTO_TOKEN']
 crypto_coinmarketcap_api_token = os.environ['COIN_TOKEN']
 stock_api_token = os.environ['STOCK_TOKEN']
