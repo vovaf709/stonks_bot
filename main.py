@@ -168,16 +168,20 @@ async def create_alert(message: Message):
 async def wallet(message: Message):
     """Sends stock price"""
     splitted = message['text'].split()
-    print(echo)
+    # print(echo)
     # Return all wallet
     if len(splitted) == 1:
         # await bot.send_message(message.chat.id, 'Please specify stock ticker to add in wallet')
 
         # via redis
-        # records = redis.smembers('stocks')
+        records = redis.smembers('stocks')
+        data = dict()
+        for key in records:
+            key = key.decode("utf-8")
+            data[key] = redis.get(key + "_price")
         #via postgres
-        records = select_stocks(cursor) # more info then set of tickers in redis
-        await bot.send_message(message.chat.id, records) 
+        # records = select_stocks(cursor) # more info then set of tickers in redis
+        await bot.send_message(message.chat.id, data) 
 
     elif len(splitted) > 2:
         raise ApiException('Multiple stock tickers are not supported yet :(')
