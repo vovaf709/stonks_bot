@@ -163,6 +163,29 @@ async def create_alert(message: Message):
         # raise ApiException('Multiple stocks are not supported yet :(')
 
 
+
+@dispatcher.message_handler(commands=['alerts'])
+@catch_and_send(bot, ApiException)
+async def alerts(message: Message):
+    """Sends stock price"""
+    splitted = message['text'].split()
+    # print(echo)
+    # Return all wallet
+    if len(splitted) == 1:
+        # await bot.send_message(message.chat.id, 'Please specify stock ticker to add in wallet')
+
+        # via redis
+        response = []
+        for key in redis.lrange('alerts', 0, -1):
+            key_utf = key.decode("utf-8")
+            response.append(key_utf)
+            
+        await bot.send_message(message.chat.id, response) 
+
+    elif len(splitted) > 1:
+        raise ApiException('No no')
+
+
 @dispatcher.message_handler(commands=['wallet'])
 @catch_and_send(bot, ApiException)
 async def wallet(message: Message):
@@ -335,12 +358,12 @@ async def get_echo(echo):
         if price_alert:
             if float(price_alert[1]) < cur_price and price_alert[0].decode("utf-8") == "1": # {key}_price in redis
                 print('we in 1')
-                await bot.send_message(-634163567, f"alert {key_utf} {objes[key_utf]}") 
+                await bot.send_message(-634163567, f"alert {key_utf} {cur_price}") 
                 redis.delete(key_utf + "_alert")
                 redis.lrem('alerts', 1, key_utf)
             elif float(price_alert[1]) < cur_price and price_alert[0].decode("utf-8") == "0":
                 print('we in 2')
-                await bot.send_message(-634163567, f"alert {key_utf} {objes[key_utf]}")
+                await bot.send_message(-634163567, f"alert {key_utf} {cur_price}")
                 redis.delete(key_utf + "_alert")
                 redis.lrem('alerts', 1, key_utf)
         else:   
