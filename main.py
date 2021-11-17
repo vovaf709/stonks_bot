@@ -25,7 +25,7 @@ import asyncio
 from websockets import connect
 import json
 # import redis_work
-
+from websockets.exceptions import ConnectionClosedOK
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -119,7 +119,7 @@ async def send_stock(message: Message):
 
     await bot.send_message(message.chat.id, format_output(stock_price))
 
-
+# Add remove alert 
 @dispatcher.message_handler(commands=['alert'])
 @catch_and_send(bot, ApiException)
 async def create_alert(message: Message):
@@ -136,17 +136,19 @@ async def create_alert(message: Message):
                 print(price)
                 if price:
                     alert_price = float(splitted[2])
-                    
-                    if price < alert_price:
+                    print('prices')
+                    print(alert_price)
+                    print(price)
+                    if float(price) < alert_price:
                         redis.rpush(info['ticker'] + "_alert", 1) # Alert more than current price
                         redis.rpush(info['ticker'] + "_alert", alert_price)
-                        print(0)
+                        print('alert more than price')
                         print(alert_price)
 
                     else:
                         redis.rpush(info['ticker'] + "_alert", 0) # Alert less than current price
                         redis.rpush(info['ticker'] + "_alert", alert_price)
-                        print(0)
+                        print('alert less than price')
                         print(alert_price)
                     redis.rpush('alerts', info['ticker'])
                     await bot.send_message(message.chat.id, f"Allert: {info}, price: {price}, alert: {alert_price}")
@@ -216,9 +218,9 @@ async def wallet(message: Message):
         info = await stocks_api.get_lookup(stock_name)
         if info:
             # postgres insert
-            result = insert_stock(connection, cursor, name=info['name'], ticker=info['ticker'])
+            # result = insert_stock(connection, cursor, name=info['name'], ticker=info['ticker'])
             # redis insert
-            redis.sadd('stocks', info['ticker'])
+            result = redis.sadd('stocks', info['ticker'])
 
             if result:
                 req = '{"type":"subscribe","symbol":"' + info['ticker'].upper() + '"}'
@@ -245,9 +247,9 @@ async def wallet_r(message: Message):
         info = await stocks_api.get_lookup(stock_name)
         if info:
             # postgres delete
-            result = delete_stock(connection, cursor, name=info['name'], ticker=info['ticker'], count=1)
+            # result = delete_stock(connection, cursor, name=info['name'], ticker=info['ticker'], count=1)
             # redis delete
-            redis.srem('stocks', info[ticker])
+            result = redis.srem('stocks', info['ticker'])
 
             if result:
                 await bot.send_message(message.chat.id, f"{info['name']} with ticker: {info['ticker']} removed from wallet")
@@ -307,6 +309,7 @@ async def create_foo(settings):
 class EchoWebsocket:
     async def _init(self):
         # print('wo')
+        logging.info('connect to websocket')
         self._conn = connect(f"wss://ws.finnhub.io?token={stock_api_token}")
         self.websocket = await self._conn.__aenter__()
         # print(self.websocket)
@@ -326,10 +329,29 @@ class EchoWebsocket:
 
     async def send(self, message):
         # await asyncio.sleep(5)
-        await self.websocket.send(message)
+        try:
+            await self.websocket.send(message)
+        except ConnectionClosedOK as e:
+            logging.info(e)
+            logging.info('reconnect to websocket')
+
+            await self._init()
+            await define_stocks(self)
+
+            await self.websocket.send(message)
+
 
     async def receive(self):
-        return await self.websocket.recv()
+        try:
+            return await self.websocket.recv()
+        except ConnectionClosedOK as e:
+            logging.info(e)
+            logging.info('reconnect to websocket')
+
+            await self._init()
+            await define_stocks(self)
+            return await self.websocket.recv()
+
 
 
 ## WARINNG check logic with alerts and in create_alert func
@@ -339,8 +361,12 @@ async def get_echo(echo):
     # print(response)
     response = json.loads(response).get('data', [])
     objes = dict()
+    tickers_set = set()
+    for j in redis.smembers('stocks'):
+        tickers_set.add(j.decode("utf-8") )
     for data in response:
-        objes[data['s']] = data['p'] # t - timestamp, s - ticker, p - price
+        if data['s'] in tickers_set:
+            objes[data['s']] = data['p'] # t - timestamp, s - ticker, p - price
     print(objes)
     for key, val in objes.items():
         redis.set(key + "_price", val)
@@ -349,20 +375,20 @@ async def get_echo(echo):
     for key in redis.lrange('alerts', 0, -1):
         # print(key)
         key_utf = key.decode("utf-8")
-        print(key_utf)
+        # print(key_utf)
         price_alert = redis.lrange(key_utf + "_alert", 0, -1)
         cur_price = objes.get(key_utf, float(redis.get(key_utf + "_price")))
         print(f"cur_price: {cur_price}")
         print(f"price_alert: {price_alert}")
-        print(float(price_alert[1]))
+        # print(float(price_alert[1]))
         if price_alert:
             if float(price_alert[1]) < cur_price and price_alert[0].decode("utf-8") == "1": # {key}_price in redis
-                print('we in 1')
+                # print('we in 1')
                 await bot.send_message(-634163567, f"alert {key_utf} {cur_price}") 
                 redis.delete(key_utf + "_alert")
                 redis.lrem('alerts', 1, key_utf)
-            elif float(price_alert[1]) < cur_price and price_alert[0].decode("utf-8") == "0":
-                print('we in 2')
+            elif float(price_alert[1]) > cur_price and price_alert[0].decode("utf-8") == "0":
+                # print('we in 2')
                 await bot.send_message(-634163567, f"alert {key_utf} {cur_price}")
                 redis.delete(key_utf + "_alert")
                 redis.lrem('alerts', 1, key_utf)
@@ -438,7 +464,7 @@ if __name__ == '__main__':
         # loop.create_task(websocket_shit())
         # logging.info("Websocket started")
         # For local start specify https url from ngrok
-        WEBHOOK_URL = 'https://fbf3-109-252-81-136.ngrok.io'
+        WEBHOOK_URL = 'https://3cb2-109-252-81-136.ngrok.io'
         WEBAPP_HOST = '0.0.0.0'
         WEBAPP_PORT = 5000
 
