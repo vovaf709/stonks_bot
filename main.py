@@ -438,12 +438,32 @@ async def websocket_shit():
         # print(resp)
     print('we out')
 
+def _handle_task_result(task: asyncio.Task) -> None:
+    try:
+
+        res = task.result()
+        print(res)
+    except asyncio.CancelledError:
+        print('we here after cancel build')
+        pass  # Task cancellation should not be logged as an error.
+    except Exception:  # pylint: disable=broad-except
+        
+        logging.exception('Exception raised by task = %r', task)
+        print('some shit heppened')
+        # restart webhook
+        logging.info("Websocket restarting")
+        loop = asyncio.get_event_loop()
+        my_task = loop.create_task(websocket_shit())
+        my_task.add_done_callback(_handle_task_result)
+        logging.info("Websocket restarted")
+
 
 if __name__ == '__main__':
     if on_heroku():
         logging.info("Websocket starting")
         loop = asyncio.get_event_loop()
-        loop.create_task(websocket_shit())
+        my_task = loop.create_task(websocket_shit())
+        my_task.add_done_callback(_handle_task_result)
         logging.info("Websocket started")
 
         PROJECT_NAME = os.environ['PROJECT_NAME']
@@ -461,10 +481,11 @@ if __name__ == '__main__':
         
         # logging.info("Websocket starting")
         # loop = asyncio.get_event_loop()
-        # loop.create_task(websocket_shit())
+        # my_task = loop.create_task(websocket_shit())
+        # my_task.add_done_callback(_handle_task_result)
         # logging.info("Websocket started")
         # For local start specify https url from ngrok
-        WEBHOOK_URL = 'https://3cb2-109-252-81-136.ngrok.io'
+        WEBHOOK_URL = 'https://7726-109-252-81-136.ngrok.io'
         WEBAPP_HOST = '0.0.0.0'
         WEBAPP_PORT = 5000
 
