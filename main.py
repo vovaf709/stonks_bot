@@ -160,6 +160,31 @@ async def create_alert(message: Message):
         # raise ApiException('Multiple stocks are not supported yet :(')
 
 
+# Add remove alert 
+@dispatcher.message_handler(commands=['alert_r'])
+@catch_and_send(bot, ApiException)
+async def remove_alert(message: Message):
+    """Sends stock price"""
+    splitted = message['text'].split()
+
+    if len(splitted) == 2:
+        stock_name = splitted[1]
+        info = await stocks_api.get_lookup(stock_name)
+        if info:
+            if redis.sismember('alerts', info['ticker']):
+                redis.srem('alerts', info['ticker'])
+                redis.delete(info['ticker'] + "_alert")
+                await bot.send_message(message.chat.id, f"Allert: {info} deleted")
+
+            else:
+                await bot.send_message(message.chat.id, f"We didnt find this stock: {info} in alerts")
+      
+        else:
+            await bot.send_message(message.chat.id, "We didnt find something close to this name")
+                
+    else:
+        await bot.send_message(message.chat.id, 'Please specify stock in alerts to remove it')
+
 
 @dispatcher.message_handler(commands=['alerts'])
 @catch_and_send(bot, ApiException)
@@ -173,7 +198,7 @@ async def alerts(message: Message):
 
         # via redis
         response = []
-        for key in redis.lrange('alerts', 0, -1):
+        for key in redis.smembers('alerts'):
             key_utf = key.decode("utf-8")
             response.append(key_utf)
             
