@@ -15,9 +15,9 @@ from models.crypto import (
 )
 from models.stocks import StocksApi
 
-import psycopg2
-from psycopg2 import Error
-from db_work import insert_stock, select_stocks, select_stocks_filter, delete_stock
+# import psycopg2
+# from psycopg2 import Error
+# from db_work import insert_stock, select_stocks, select_stocks_filter, delete_stock
 # import websocket
 from api_tokens import stock_api_token
 import redis
@@ -29,15 +29,15 @@ from websockets.exceptions import ConnectionClosedOK
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-try:
-    # Connect to an existing database
-    connection = psycopg2.connect(DATABASE_URL)
+# try:
+#     # Connect to an existing database
+#     connection = psycopg2.connect(DATABASE_URL)
 
-    # Create a cursor to perform database operations
-    cursor = connection.cursor()
-    logging.info("Successful connecting to PostgreSQL")
-except (Exception, Error) as error:
-    logging.info("Error while connecting to PostgreSQL", error)
+#     # Create a cursor to perform database operations
+#     cursor = connection.cursor()
+#     logging.info("Successful connecting to PostgreSQL")
+# except (Exception, Error) as error:
+#     logging.info("Error while connecting to PostgreSQL", error)
 
 try:
     redis = redis.from_url(REDIS_URL)
@@ -128,35 +128,30 @@ async def create_alert(message: Message):
 
     if len(splitted) == 3:
         stock_name = splitted[1]
-        print(stock_name)
         info = await stocks_api.get_lookup(stock_name)
         if info:
-            if redis.sismember('stocks', info['ticker']):
-                price = float(redis.get(info['ticker'] + "_price"))
-                print(price)
+            if redis.sismember('stocks', info['ticker']) and not redis.sismember('alerts', info['ticker']):
+                some = redis.get(info['ticker'] + "_price")
+                if not some:
+                    await bot.send_message(message.chat.id, "For some reason we dont have price and cant set alert")
+                    return 
+                price = float(some)
                 if price:
                     alert_price = float(splitted[2])
-                    print('prices')
-                    print(alert_price)
-                    print(price)
                     if float(price) < alert_price:
                         redis.rpush(info['ticker'] + "_alert", 1) # Alert more than current price
                         redis.rpush(info['ticker'] + "_alert", alert_price)
-                        print('alert more than price')
-                        print(alert_price)
 
                     else:
                         redis.rpush(info['ticker'] + "_alert", 0) # Alert less than current price
                         redis.rpush(info['ticker'] + "_alert", alert_price)
-                        print('alert less than price')
-                        print(alert_price)
-                    redis.rpush('alerts', info['ticker'])
+                    redis.sadd('alerts', info['ticker'])
                     await bot.send_message(message.chat.id, f"Allert: {info}, price: {price}, alert: {alert_price}")
 
                 else:
                     await bot.send_message(message.chat.id, "For some reason we dont have price and cant set alert")
             else:
-                await bot.send_message(message.chat.id, f"We didnt find this stock: {info} in wallet")
+                await bot.send_message(message.chat.id, f"We didnt find this stock: {info} in wallet or it already in alerts")
         else:
             await bot.send_message(message.chat.id, "We didnt find something close to this name")
 
@@ -372,7 +367,7 @@ async def get_echo(echo):
         redis.set(key + "_price", val)
 
     print('alerts')
-    for key in redis.lrange('alerts', 0, -1):
+    for key in redis.smembers('alerts'):
         # print(key)
         key_utf = key.decode("utf-8")
         # print(key_utf)
@@ -386,12 +381,12 @@ async def get_echo(echo):
                 # print('we in 1')
                 await bot.send_message(-634163567, f"alert {key_utf} {cur_price}") 
                 redis.delete(key_utf + "_alert")
-                redis.lrem('alerts', 1, key_utf)
+                redis.srem('alerts', 1, key_utf)
             elif float(price_alert[1]) > cur_price and price_alert[0].decode("utf-8") == "0":
                 # print('we in 2')
                 await bot.send_message(-634163567, f"alert {key_utf} {cur_price}")
                 redis.delete(key_utf + "_alert")
-                redis.lrem('alerts', 1, key_utf)
+                redis.srem('alerts', 1, key_utf)
         else:   
             print('strange no price alert but in list of alerts')
 
@@ -459,6 +454,9 @@ def _handle_task_result(task: asyncio.Task) -> None:
 
 
 if __name__ == '__main__':
+    redis.delete("alerts")
+    redis.delete("NVDA_alert")
+
     if on_heroku():
         logging.info("Websocket starting")
         loop = asyncio.get_event_loop()
